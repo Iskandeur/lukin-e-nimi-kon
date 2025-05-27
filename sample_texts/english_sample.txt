@@ -1,0 +1,1 @@
+The quick brown fox jumps over the lazy dog. This sentence contains every letter of the alphabet at least once, making it perfect for frequency analysis. English text typically shows high frequencies for letters like 'e', 't', 'a', 'o', 'i', 'n', and 's'. These patterns help distinguish English from other languages through statistical analysis. 
