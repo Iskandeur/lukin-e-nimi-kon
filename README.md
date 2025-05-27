@@ -11,6 +11,7 @@ An advanced Python tool for automatic cipher detection and decryption using freq
   - Expert pattern recognition
   - Word pattern analysis
   - Iterative optimization
+  - **🤖 AI-Powered Refinement**: Gemini AI post-processing to perfect decoded text
 - **Simple Frequency Viewer**: Standalone tool for letter frequency analysis and visualization
 - **Language Pattern Comparison**: Compare text patterns with English and French frequencies
 - **Bilingual Support**: Handles both English and French texts
@@ -26,6 +27,21 @@ git clone https://github.com/yourusername/lukin-e-nimi-kon.git
 cd lukin-e-nimi-kon
 pip install -r requirements.txt
 ```
+
+### Optional: AI Enhancement
+
+For advanced AI-powered cipher solving, the tool can integrate with Google Gemini AI:
+
+```bash
+# 1. Copy the example file and add your API key
+cp .env.example .env
+# Then edit .env with your actual API key
+
+# 2. The tool will automatically load the API key from .env
+# AI support is optional - the tool works fully without it
+```
+
+**Note**: The `.env` file is automatically ignored by git for security. Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey).
 
 ### Basic Usage
 
@@ -45,6 +61,9 @@ python cipher_analyzer.py --demo -g
 # Use the frequency viewer for detailed analysis
 python frequency_viewer.py "sample text here"
 python frequency_viewer.py -f sample_texts/english_sample.txt
+
+# Enable AI assistance for complex ciphers
+python cipher_analyzer.py "complex cipher text" --ai
 ```
 
 ## 📖 Examples
@@ -56,6 +75,21 @@ $ python cipher_analyzer.py "WKH TXLFN EURZQ IRA MXPSV RYHU WKH ODCB GRJ"
 ✅ BEST TRANSLATION (Caesar Cipher (English)):
 THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG
 Caesar Shift: 3
+```
+
+### AI-Powered Refinement
+```bash
+$ python cipher_analyzer.py "complex substitution cipher" --ai
+
+🔬 Advanced substitution analysis...
+    🎯 Expert manual analysis...
+    Expert result preview: c etait oge qmorgee d avril frmide et claire...
+    🤖 Gemini AI refinement...
+    AI refinement preview: c etait une chargee d avril froide et claire...
+    Readability improvement: 6 → 8 readable words
+
+✅ BEST TRANSLATION (Expert Manual Analysis + AI Refinement):
+c etait une chargee d avril froide et claire les barrières s'engageaient
 ```
 
 ### Substitution Cipher (French)
@@ -99,7 +133,7 @@ French similarity: -189.2
 
 ### Cipher Analyzer
 ```
-usage: cipher_analyzer.py [-h] [-f FILE] [-g] [-l {auto,english,french}] [--demo] [--freq-only] [text]
+usage: cipher_analyzer.py [-h] [-f FILE] [-g] [-l {auto,english,french}] [--demo] [--freq-only] [--ai] [text]
 
 positional arguments:
   text                  Text to analyze (or use --file)
@@ -112,6 +146,7 @@ options:
                         Target language for analysis (default: auto-detect)
   --demo                Run with demo Caesar cipher
   --freq-only           Show only frequency analysis (no decryption)
+  --ai                  Enable Gemini AI refinement to perfect decoded text
 ```
 
 ### Frequency Viewer
@@ -147,6 +182,7 @@ The tool employs multiple sophisticated methods:
 - **Expert Pattern Recognition**: Uses proven linguistic patterns (e.g., "ju" → "le" in French)
 - **Word Pattern Analysis**: Identifies common word structures and endings
 - **Iterative Optimization**: Refines mappings through systematic testing
+- **🤖 AI Refinement**: Gemini AI conservatively fixes obvious letter errors while preserving original structure and meaning
 
 ### 4. Language Detection
 Automatically detects whether the source text is English or French based on:
@@ -190,6 +226,8 @@ The tool uses a multi-factor scoring system:
 
 - Python 3.6+
 - matplotlib (for frequency graphs)
+- google-genai (for AI-powered text refinement, optional)
+- python-dotenv (for environment variable management)
 - Standard library: argparse, collections, string, sys
 
 ## 📊 Sample Results
@@ -227,6 +265,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Modern encryption methods are not supported
 - Performance depends on text quality and language consistency
 - Some substitution ciphers may require manual refinement
+- AI features require internet connection and valid API key
 
 ## 📈 Future Enhancements
 

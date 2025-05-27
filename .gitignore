@@ -146,4 +146,5 @@ Thumbs.db
 
 # Project specific
 debug_scores.py
-test_analyzer.py 
+test_analyzer.py
+alternating_cipher.py 

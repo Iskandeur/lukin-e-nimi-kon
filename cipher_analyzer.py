@@ -15,6 +15,22 @@ import string
 from collections import Counter
 import sys
 import argparse
+import os
+
+# Environment variables
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load environment variables from .env file
+    DOTENV_AVAILABLE = True
+except ImportError:
+    DOTENV_AVAILABLE = False
+
+# Google Gemini AI integration
+try:
+    import google.generativeai as genai
+    GEMINI_AVAILABLE = True
+except ImportError:
+    GEMINI_AVAILABLE = False
 
 # Expected letter frequencies in English (percentages)
 ENGLISH_FREQ = {
@@ -36,6 +52,27 @@ FRENCH_FREQ = {
 ENGLISH_WORDS = ['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'was', 'one', 'our', 'out', 'day', 'get', 'has', 'him', 'his', 'how', 'its', 'may', 'new', 'now', 'old', 'see', 'two', 'way', 'who', 'boy', 'did', 'man', 'end', 'few', 'got', 'let', 'put', 'say', 'she', 'too', 'use', 'over', 'quick', 'brown', 'fox', 'jumps', 'lazy', 'dog']
 
 FRENCH_WORDS = ['le', 'de', 'et', 'un', 'il', 'en', 'que', 'pour', 'dans', 'ce', 'son', 'une', 'sur', 'avec', 'ne', 'se', 'pas', 'tout', 'plus', 'par', 'grand', 'comme', 'lui', 'temps', 'sans', 'nous', 'mon', 'bien', 'encore', 'aussi', 'leur', 'dont', 'peu', 'elle', 'fois', 'sous', 'depuis', 'tant', 'toujours', 'entre', 'autre', 'donc', 'vers', 'du', 'au', 'la', 'les', 'des', 'cette', 'ces', 'mes', 'tes', 'ses', 'nos', 'vos', 'leurs', 'qui', 'quoi', 'celui', 'celle', 'ceux', 'celles', 'moi', 'toi', 'soi', 'eux', 'elles', 'si', 'oui', 'non', 'peut', 'doit', 'fait', 'dit', 'va', 'vient', 'sort', 'contre', 'autour', 'devant', 'avant', 'mais', 'car', 'ainsi', 'alors', 'enfin', 'ensuite', 'puis', 'beaucoup', 'assez', 'trop', 'moins', 'autant', 'aussi', 'fort', 'bien', 'mal', 'mieux', 'pire', 'environ', 'presque', 'seulement', 'jamais', 'parfois', 'souvent', 'maintenant', 'hier', 'demain', 'ici', 'ailleurs', 'partout', 'etait', 'claire', 'avril', 'froid', 'rapidement', 'porte', 'vitree', 'maisons', 'victoire', 'sentait', 'vieux', 'tapis']
+
+# Gemini AI Configuration
+def configure_gemini():
+    """Configure Gemini AI with the API key from environment variables."""
+    if not GEMINI_AVAILABLE:
+        return False
+    
+    try:
+        # Try to get API key from environment variable
+        api_key = os.getenv('GEMINI_API_KEY')
+        
+        if not api_key:
+            print("⚠️  Warning: GEMINI_API_KEY not found in environment variables")
+            print("    Create a .env file with: GEMINI_API_KEY=your_api_key_here")
+            return False
+        
+        genai.configure(api_key=api_key)
+        return True
+    except Exception as e:
+        print(f"⚠️  Warning: Could not configure Gemini AI: {e}")
+        return False
 
 def analyze_letter_frequency(text):
     """Analyze the frequency of each letter in the given text."""
@@ -135,6 +172,112 @@ def try_all_caesar_shifts(ciphertext):
     else:
         return best_results['english']
 
+def gemini_text_refiner(partially_decoded_text, original_cipher, method_name, language='auto'):
+    """Use Gemini AI to refine and fix remaining issues in partially decoded text."""
+    if not configure_gemini():
+        return None
+    
+    print("    🤖 Gemini AI refinement...")
+    
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        
+        # Create a refined prompt for minimal correction
+        prompt = f"""You are a proofreader fixing ONLY obvious letter substitution errors in a partially decoded cipher.
+
+PARTIALLY DECODED TEXT: "{partially_decoded_text}"
+TARGET LANGUAGE: {language}
+
+IMPORTANT: This text was decoded from a substitution cipher. Some letters may still be wrong, but DO NOT rewrite or change the meaning. Only fix obvious letter errors.
+
+RULES:
+1. Keep the EXACT same text structure and length
+2. Only change letters that are clearly wrong (creating non-words)
+3. If you change one letter, change it consistently throughout
+4. Do NOT add, remove, or rearrange words
+5. Do NOT change the story or meaning
+6. Focus on making existing words readable
+
+Examples of what TO fix:
+- "tke" → "the" (change all 'k' to 'h')
+- "amd" → "and" (change all 'm' to 'n')
+- "oge" → "une" (change all 'g' to 'n')
+
+Examples of what NOT to do:
+- Do NOT rewrite entire sentences
+- Do NOT change the plot or story
+- Do NOT add new words or ideas
+
+Provide ONLY the minimally corrected text:
+
+CORRECTED:"""
+
+        # Use low temperature to prevent hallucination
+        generation_config = genai.types.GenerationConfig(
+            temperature=0.1,  # Very low temperature for minimal creativity
+            max_output_tokens=2000,
+            top_p=0.1,
+            top_k=1
+        )
+        
+        response = model.generate_content(prompt, generation_config=generation_config)
+        
+        if response and response.text:
+            refined_text = response.text.strip()
+            
+            # Remove any potential formatting or extra text
+            if refined_text.startswith('CORRECTED:'):
+                refined_text = refined_text.replace('CORRECTED:', '').strip()
+            elif refined_text.startswith('CORRECTED TEXT:'):
+                refined_text = refined_text.replace('CORRECTED TEXT:', '').strip()
+            
+            # Remove quotes if the AI added them
+            if refined_text.startswith('"') and refined_text.endswith('"'):
+                refined_text = refined_text[1:-1]
+            
+            if refined_text and refined_text != partially_decoded_text:
+                # Calculate improvement score
+                original_score = calculate_language_score(partially_decoded_text, FRENCH_FREQ if language == 'french' else ENGLISH_FREQ)
+                refined_score = calculate_language_score(refined_text, FRENCH_FREQ if language == 'french' else ENGLISH_FREQ)
+                
+                # Count readable words improvement
+                original_words = count_readable_words(partially_decoded_text, language)
+                refined_words = count_readable_words(refined_text, language)
+                
+                print(f"    AI refinement preview: {refined_text[:60]}...")
+                print(f"    Readability improvement: {original_words} → {refined_words} readable words")
+                
+                return {
+                    'text': refined_text,
+                    'original_text': partially_decoded_text,
+                    'improvement_score': refined_score - original_score,
+                    'readable_words_before': original_words,
+                    'readable_words_after': refined_words,
+                    'method': f'{method_name} + AI Refinement'
+                }
+        
+    except Exception as e:
+        print(f"    ⚠️  Gemini AI refinement error: {e}")
+    
+    return None
+
+def count_readable_words(text, language):
+    """Count readable words in the given language."""
+    words = text.lower().split()
+    word_list = FRENCH_WORDS if language == 'french' else ENGLISH_WORDS
+    readable_count = 0
+    
+    for word in words:
+        # Remove punctuation
+        clean_word = ''.join(c for c in word if c.isalpha())
+        if len(clean_word) >= 2:
+            if clean_word in word_list:
+                readable_count += 1
+            elif len(clean_word) <= 3:  # Short words are often readable
+                readable_count += 0.5
+    
+    return int(readable_count)
+
 def expert_manual_analysis(ciphertext):
     """Expert manual analysis based on successful pattern analysis."""
     print("    🎯 Expert manual analysis...")
@@ -186,41 +329,83 @@ def expert_manual_analysis(ciphertext):
         'language': 'french'
     }
 
-def frequency_substitution_analysis(ciphertext):
-    """Enhanced substitution cipher analysis with expert method."""
+def frequency_substitution_analysis(ciphertext, use_ai=False):
+    """Enhanced substitution cipher analysis with expert method and AI refinement."""
     print("🔬 Advanced substitution analysis...")
     
-    # First try the expert manual analysis for known patterns
-    expert_result = expert_manual_analysis(ciphertext)
+    results = []
     
-    # Also try basic frequency analysis for comparison
+    # Try expert manual analysis for known patterns
+    expert_result = expert_manual_analysis(ciphertext)
+    if expert_result:
+        results.append(expert_result)
+        
+        # Try AI refinement on expert result if enabled
+        if use_ai and GEMINI_AVAILABLE:
+            refined_expert = gemini_text_refiner(
+                expert_result['text'], 
+                ciphertext, 
+                expert_result['method'], 
+                expert_result['language']
+            )
+            if refined_expert and refined_expert['improvement_score'] > 0:
+                # Create a new result with improved score
+                refined_result = expert_result.copy()
+                refined_result['text'] = refined_expert['text']
+                refined_result['score'] += refined_expert['improvement_score'] + (refined_expert['readable_words_after'] * 50)
+                refined_result['method'] = refined_expert['method']
+                refined_result['ai_refined'] = True
+                results.append(refined_result)
+    
+    # Try basic frequency analysis for comparison
     frequencies, total = analyze_letter_frequency(ciphertext)
     cipher_sorted = sorted(frequencies.items(), key=lambda x: x[1]['percentage'], reverse=True)
-    french_sorted = sorted(FRENCH_FREQ.items(), key=lambda x: x[1], reverse=True)
     
-    substitution = {}
-    for i, (cipher_letter, _) in enumerate(cipher_sorted):
-        if i < len(french_sorted) and frequencies[cipher_letter]['count'] > 0:
-            substitution[cipher_letter] = french_sorted[i][0]
-    
-    freq_result = apply_substitution(ciphertext, substitution)
-    freq_score = calculate_language_score(freq_result, FRENCH_FREQ) + count_french_words(freq_result) * 20
-    
-    freq_analysis = {
-        'text': freq_result,
-        'score': freq_score,
-        'mapping': substitution,
-        'method': 'Frequency Analysis',
-        'language': 'french'
-    }
+    # Try both English and French frequency mappings
+    for lang, freq_data in [('english', ENGLISH_FREQ), ('french', FRENCH_FREQ)]:
+        lang_sorted = sorted(freq_data.items(), key=lambda x: x[1], reverse=True)
+        
+        substitution = {}
+        for i, (cipher_letter, _) in enumerate(cipher_sorted):
+            if i < len(lang_sorted) and frequencies[cipher_letter]['count'] > 0:
+                substitution[cipher_letter] = lang_sorted[i][0]
+        
+        freq_result = apply_substitution(ciphertext, substitution)
+        word_count = count_french_words(freq_result) if lang == 'french' else count_english_words(freq_result)
+        freq_score = calculate_language_score(freq_result, freq_data) + word_count * 20
+        
+        freq_analysis = {
+            'text': freq_result,
+            'score': freq_score,
+            'mapping': substitution,
+            'method': f'Frequency Analysis ({lang.title()})',
+            'language': lang
+        }
+        results.append(freq_analysis)
+        
+        # Try AI refinement on frequency analysis if enabled
+        if use_ai and GEMINI_AVAILABLE:
+            refined_freq = gemini_text_refiner(
+                freq_result, 
+                ciphertext, 
+                f'Frequency Analysis ({lang.title()})', 
+                lang
+            )
+            if refined_freq and refined_freq['improvement_score'] > 0:
+                # Create a new result with improved score
+                refined_result = freq_analysis.copy()
+                refined_result['text'] = refined_freq['text']
+                refined_result['score'] += refined_freq['improvement_score'] + (refined_freq['readable_words_after'] * 50)
+                refined_result['method'] = refined_freq['method']
+                refined_result['ai_refined'] = True
+                results.append(refined_result)
     
     # Return the best result
-    if expert_result['score'] > freq_analysis['score']:
-        print(f"  ✓ Expert analysis wins with score: {expert_result['score']:.1f}")
-        return expert_result
-    else:
-        print(f"  ✓ Frequency analysis wins with score: {freq_analysis['score']:.1f}")
-        return freq_analysis
+    best_result = max(results, key=lambda x: x['score'])
+    ai_note = " (AI-refined)" if best_result.get('ai_refined') else ""
+    print(f"  ✓ {best_result['method']}{ai_note} wins with score: {best_result['score']:.1f}")
+    
+    return best_result
 
 def count_french_words(text):
     """Count recognizable French words in text."""
@@ -310,11 +495,16 @@ def is_likely_encrypted(text):
     # More sensitive detection: if few words are readable OR frequency is unusual
     return frequency_score >= 1 or readability_score < 0.5
 
-def analyze_text(text, show_graph=False):
+def analyze_text(text, show_graph=False, use_ai=False):
     """Main analysis function that determines the best translation."""
     print("🔍 LUKIN E NIMI KON - Automatic Translation")
     print("=" * 50)
     print(f"Input: {text[:60]}{'...' if len(text) > 60 else ''}")
+    
+    if use_ai and GEMINI_AVAILABLE:
+        print("🤖 AI assistance enabled")
+    elif use_ai and not GEMINI_AVAILABLE:
+        print("⚠️  AI assistance requested but not available (install google-genai)")
     
     # Basic frequency analysis
     frequencies, total_letters = analyze_letter_frequency(text)
@@ -347,7 +537,7 @@ def analyze_text(text, show_graph=False):
     caesar_result = try_all_caesar_shifts(text)
     
     # Try substitution cipher with expert analysis
-    substitution_result = frequency_substitution_analysis(text)
+    substitution_result = frequency_substitution_analysis(text, use_ai=use_ai)
     
     # Compare results and pick the best
     caesar_lang, _, caesar_words_list = detect_language(caesar_result['text'])
@@ -408,7 +598,7 @@ def main():
     """Main function with command line argument support."""
     parser = argparse.ArgumentParser(
         description='lukin e nimi kon v1.0.0 - Advanced automatic cipher detection and decryption',
-        epilog='Examples:\n  python cipher_analyzer.py "encrypted text"\n  python cipher_analyzer.py -f cipher.txt -g\n  python cipher_analyzer.py --demo',
+        epilog='Examples:\n  python cipher_analyzer.py "encrypted text"\n  python cipher_analyzer.py -f cipher.txt -g\n  python cipher_analyzer.py --demo\n  python cipher_analyzer.py "complex cipher" --ai',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument('text', nargs='?', help='Text to analyze (or use --file)')
@@ -418,6 +608,7 @@ def main():
                        help='Target language for analysis (default: auto-detect)')
     parser.add_argument('--demo', action='store_true', help='Run with demo Caesar cipher')
     parser.add_argument('--freq-only', action='store_true', help='Show only frequency analysis (no decryption)')
+    parser.add_argument('--ai', action='store_true', help='Enable Gemini AI refinement to perfect decoded text')
     parser.add_argument('--version', action='version', version='lukin e nimi kon v1.0.0')
     
     args = parser.parse_args()
@@ -486,7 +677,7 @@ def main():
         return
     
     # Analyze the text
-    analyze_text(text, args.graph)
+    analyze_text(text, args.graph, args.ai)
 
 if __name__ == "__main__":
     main() 

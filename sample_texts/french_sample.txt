@@ -1,1 +1,1 @@
-Le renard brun et rapide saute par-dessus le chien paresseux. Cette phrase française contient de nombreuses lettres pour l'analyse de fréquence. En français, les lettres les plus fréquentes sont généralement 'e', 'a', 'i', 't', 'n', 'r', 's', et 'u'. Ces modèles permettent de distinguer le français de l'anglais par analyse statistique. 
+﻿Voici un exemple de texte français pour démontrer l'analyse de fréquence des lettres. Cette phrase contient diverses lettres et accents typiques de la langue française. Elle permet de tester les algorithmes de cryptanalyse.
